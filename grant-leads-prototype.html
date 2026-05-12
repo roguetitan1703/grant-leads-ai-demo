@@ -1,0 +1,1142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Search — Grant Leads</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Palette derived from the actual platform screenshots: dark forest + gold */
+    --bg:           #0d2218;
+    --bg-2:        #0f2a1d;
+    --panel:       #133525;
+    --panel-2:     #163d2a;
+    --panel-hi:    #194732;
+    --border:      #1f4d36;
+    --border-hi:   #2a6647;
+    --text:        #ecf3ee;
+    --text-2:      #b8c8bd;
+    --muted:       #8aa294;
+    --gold:        #f0c850;
+    --gold-hi:     #ffd966;
+    --gold-soft:   rgba(240, 200, 80, 0.12);
+    --gold-line:   rgba(240, 200, 80, 0.35);
+    --green:       #4ade80;
+    --amber:       #f5b942;
+    --red:         #ef5e5e;
+    --blue-ink:    #7fb4e0;
+    --shadow:      0 1px 0 rgba(255,255,255,0.02) inset, 0 1px 2px rgba(0,0,0,0.4);
+  }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  * { box-sizing: border-box; }
+  button { font-family: inherit; cursor: pointer; }
+  input, textarea, select { font-family: inherit; color: inherit; }
+  ::selection { background: var(--gold-soft); color: var(--gold-hi); }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-hi); }
+
+  /* Animations */
+  @keyframes shimmer {
+    0% { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulseDot {
+    0%, 100% { opacity: .4; transform: scale(1); }
+    50%      { opacity: 1; transform: scale(1.2); }
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes streamIn {
+    from { opacity: 0; filter: blur(2px); }
+    to   { opacity: 1; filter: blur(0); }
+  }
+  .shimmer {
+    background: linear-gradient(90deg,
+      rgba(255,255,255,0.02) 0%,
+      rgba(255,255,255,0.06) 50%,
+      rgba(255,255,255,0.02) 100%);
+    background-size: 800px 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+</style>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+
+/* -------------------------------------------------------------------------- */
+/* TWEAKS SHIM (Mocks the proprietary external tweaks-panel.jsx tools)        */
+/* -------------------------------------------------------------------------- */
+
+window.useTweaks = function(defaults) {
+  const [values, setValues] = React.useState(defaults);
+  const setTweak = React.useCallback((k, v) => setValues(p => ({...p, [k]: v})), []);
+  return [values, setTweak];
+};
+
+window.TweaksPanel = ({ title, children }) => (
+  <div style={{ position: 'fixed', bottom: 16, right: 16, background: 'var(--panel)', border: '1px solid var(--border-hi)', borderRadius: 12, padding: 16, width: 300, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', zIndex: 1000, animation: 'fadeIn 0.3s ease-out' }}>
+    <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 14, color: 'var(--text)', borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>{title}</div>
+    {children}
+  </div>
+);
+
+window.TweakSection = ({ label, children }) => (
+  <div style={{ marginBottom: 16 }}>
+    <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--muted)', marginBottom: 8, fontWeight: 600 }}>{label}</div>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{children}</div>
+  </div>
+);
+
+window.TweakButton = ({ label, onClick }) => (
+  <button onClick={onClick} style={{ background: 'var(--bg-2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 8px', borderRadius: 6, fontSize: 11, cursor: 'pointer', flex: '1 1 45%', transition: 'background 0.2s' }} onMouseEnter={e => e.target.style.background='var(--panel-hi)'} onMouseLeave={e => e.target.style.background='var(--bg-2)'}>{label}</button>
+);
+
+window.TweakColor = ({ label, value, onChange, options }) => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+    <span style={{ fontSize: 13, color: 'var(--text)' }}>{label}</span>
+    <div style={{ display: 'flex', gap: 6 }}>
+      {options.map(o => (
+        <button key={o} onClick={() => onChange(o)} style={{ background: o, width: 22, height: 22, borderRadius: '50%', border: value === o ? '2px solid white' : '1px solid var(--border)', cursor: 'pointer', transition: 'transform 0.1s' }} onMouseEnter={e => e.target.style.transform='scale(1.1)'} onMouseLeave={e => e.target.style.transform='scale(1)'} />
+      ))}
+    </div>
+  </div>
+);
+
+/* -------------------------------------------------------------------------- */
+/* DATA (Mock data & domain helpers)                                          */
+/* -------------------------------------------------------------------------- */
+
+const ORG_TYPES = [
+  "School District", "Local Government", "Nonprofit", "Municipality", "State Agency", "Healthcare Org", "Other",
+];
+
+const STATES = [
+  ["AL","Alabama"],["AK","Alaska"],["AZ","Arizona"],["AR","Arkansas"],["CA","California"],
+  ["CO","Colorado"],["CT","Connecticut"],["DE","Delaware"],["FL","Florida"],["GA","Georgia"],
+  ["HI","Hawaii"],["ID","Idaho"],["IL","Illinois"],["IN","Indiana"],["IA","Iowa"],
+  ["KS","Kansas"],["KY","Kentucky"],["LA","Louisiana"],["ME","Maine"],["MD","Maryland"],
+  ["MA","Massachusetts"],["MI","Michigan"],["MN","Minnesota"],["MS","Mississippi"],["MO","Missouri"],
+  ["MT","Montana"],["NE","Nebraska"],["NV","Nevada"],["NH","New Hampshire"],["NJ","New Jersey"],
+  ["NM","New Mexico"],["NY","New York"],["NC","North Carolina"],["ND","North Dakota"],["OH","Ohio"],
+  ["OK","Oklahoma"],["OR","Oregon"],["PA","Pennsylvania"],["RI","Rhode Island"],["SC","South Carolina"],
+  ["SD","South Dakota"],["TN","Tennessee"],["TX","Texas"],["UT","Utah"],["VT","Vermont"],
+  ["VA","Virginia"],["WA","Washington"],["WV","West Virginia"],["WI","Wisconsin"],["WY","Wyoming"],
+];
+
+const PIPELINE_STAGES = [
+  { id: "normalize", label: "Normalizing search intent",   t: 0,   d: 350 },
+  { id: "sql",       label: "Searching 2,418 active grants", t: 350, d: 450 },
+  { id: "score",     label: "Scoring matches for Ohio school districts", t: 800, d: 350 },
+  { id: "render",    label: "Ranking by relevance",         t: 1150, d: 250 },
+  { id: "strategy",  label: "Generating your funding strategy", t: 1400, d: 600 },
+];
+
+const SAMPLE_GRANTS = [
+  { id: "g-001", title: "Student Support and Academic Enrichment (Title IV-A)", agency: "U.S. Department of Education", state: "National", funding: "Up to $750,000", fundingValue: 750000, deadline: "Aug 15, 2026", daysLeft: 24, tags: ["EdTech", "Safety & Security", "AI/ML"], score: 92, breakdown: { geo: 20, org: 25, tags: 23, funding: 14, deadline: 8, fts: 2 }, blurb: "Federal formula grant funding technology integration, school safety, and well-rounded education programs in K-12 districts." },
+  { id: "g-002", title: "School Safety National Activities — Cybersecurity Track", agency: "DOE / Office of Elementary & Secondary Education", state: "National", funding: "Up to $500,000", fundingValue: 500000, deadline: "Sep 30, 2026", daysLeft: 70, tags: ["Cybersecurity", "School Safety", "Surveillance"], score: 88, breakdown: { geo: 12, org: 25, tags: 25, funding: 14, deadline: 8, fts: 4 }, blurb: "Discretionary funds for districts deploying physical and digital safety infrastructure, including AI-assisted monitoring." },
+  { id: "g-003", title: "Ohio School Safety & Crisis Mitigation Grant", agency: "Ohio Department of Public Safety", state: "OH", funding: "Up to $1,200,000", fundingValue: 1200000, deadline: "Jun 14, 2026", daysLeft: 9, tags: ["School Safety", "Surveillance", "Infrastructure"], score: 86, breakdown: { geo: 20, org: 25, tags: 18, funding: 12, deadline: 10, fts: 1 }, blurb: "State match for districts hardening campuses against intrusion and active-threat events. Surveillance modernization is named eligible." },
+  { id: "g-004", title: "COPS School Violence Prevention Program (SVPP)", agency: "U.S. DOJ — Office of Community Oriented Policing", state: "National", funding: "Up to $500,000", fundingValue: 500000, deadline: "Jul 22, 2026", daysLeft: 49, tags: ["School Safety", "AI/ML", "Surveillance"], score: 81, breakdown: { geo: 12, org: 25, tags: 22, funding: 14, deadline: 8, fts: 0 }, blurb: "Funds technology and training to prevent school violence. AI-based threat detection is explicitly eligible under the technology line." },
+  { id: "g-005", title: "BroadbandOhio Connectivity & Smart Campus Pilot", agency: "Ohio Broadband & 5G Office", state: "OH", funding: "Up to $400,000", fundingValue: 400000, deadline: "Oct 30, 2026", daysLeft: 100, tags: ["Infrastructure", "IoT", "EdTech"], score: 74, breakdown: { geo: 20, org: 18, tags: 14, funding: 11, deadline: 8, fts: 3 }, blurb: "Capital grant supporting infrastructure that enables connected-classroom and smart-campus deployments at K-12 sites." },
+  { id: "g-006", title: "Carol M. White Physical Education & Safe Routes", agency: "U.S. Department of Education", state: "National", funding: "Up to $300,000", fundingValue: 300000, deadline: "Nov 12, 2026", daysLeft: 113, tags: ["School Safety", "Health"], score: 68, breakdown: { geo: 12, org: 25, tags: 12, funding: 8, deadline: 5, fts: 6 }, blurb: "Includes a campus-safety component that can fund camera and access-control upgrades along student travel corridors." },
+  { id: "g-007", title: "Region 7 Innovation Grant (GO Ohio)", agency: "Ohio Department of Development", state: "OH", funding: "Up to $250,000", fundingValue: 250000, deadline: "Aug 8, 2026", daysLeft: 17, tags: ["AI/ML", "Workforce", "EdTech"], score: 65, breakdown: { geo: 20, org: 10, tags: 16, funding: 9, deadline: 10, fts: 0 }, blurb: "Regional innovation funding open to public-sector applicants; AI infrastructure pilots are eligible." },
+  { id: "g-008", title: "Bureau of Justice Assistance — STOP School Violence", agency: "U.S. Department of Justice / BJA", state: "National", funding: "Up to $1,000,000", fundingValue: 1000000, deadline: "Dec 02, 2026", daysLeft: 134, tags: ["School Safety", "Surveillance"], score: 62, breakdown: { geo: 12, org: 15, tags: 18, funding: 12, deadline: 3, fts: 2 }, blurb: "Multi-year award stream for school safety technology and reporting infrastructure. Higher competition; longer cycle." },
+  { id: "g-009", title: "Ohio K-12 Mental Health & Wellness Network Grant", agency: "Ohio Department of Education & Workforce", state: "OH", funding: "Up to $180,000", fundingValue: 180000, deadline: "Sep 05, 2026", daysLeft: 45, tags: ["Health", "EdTech"], score: 58, breakdown: { geo: 20, org: 18, tags: 8, funding: 5, deadline: 8, fts: 0 }, blurb: "Adjacent to the project scope; mentioned for stacking eligibility around the well-being mandate." },
+];
+
+const TOP_STRATEGY = {
+  overview: "The cleanest path to fund this district's 12-campus AI surveillance rollout is a stack of one anchor federal grant plus two Ohio-specific awards. Title IV-A covers the bulk of platform and integration costs at the district level; the Ohio School Safety & Crisis Mitigation grant pays for the camera and access-control hardware; and SVPP funds the training, governance, and incident-response wrap. None of the three are mutually exclusive — federal supplement-not-supplant rules apply but are easily met here because the state line items are capital, not operating.",
+  perGrant: [
+    { id: "g-001", note: "Anchor the application here. Title IV-A is the cleanest fit for the AI literacy + safety dual-use framing.", action: "File the LEA Part 1 notification this week — superintendent sign-off only." },
+    { id: "g-002", note: "Pair with the federal cybersecurity track to fund the network segmentation that the camera deployment will require.", action: "Loop in the district CIO; cyber posture documentation is a scored attachment." },
+    { id: "g-003", note: "State match dollars; explicitly funds the camera + access-control hardware that Title IV-A typically excludes.", action: "Deadline is inside 30 days — escalate to the OH Public Safety LRC contact." },
+    { id: "g-004", note: "Plug-in for staff training, threat-assessment workflows, and the 24-month evaluation that DOJ requires.", action: "Letters of support from district SRO and local PD strengthen the submission." },
+  ],
+  outreach: "Based on your 12-campus deployment plan, I've identified three stacked funding sources that together cover ~$2.4M of project cost — federal Title IV-A for platform and integration, the Ohio School Safety & Crisis Mitigation grant for hardware, and DOJ SVPP for training and governance. I'd like to walk your team through the sequencing this week; the Ohio piece closes in 9 days.",
+};
+
+const TECH_TAG_OPTIONS = [ "School Safety","Cybersecurity","Surveillance","AI/ML","EdTech", "Infrastructure","Health","IoT","Workforce" ];
+
+Object.assign(window, { ORG_TYPES, STATES, PIPELINE_STAGES, SAMPLE_GRANTS, TOP_STRATEGY, TECH_TAG_OPTIONS });
+
+/* -------------------------------------------------------------------------- */
+/* UI (Reusable atoms)                                                        */
+/* -------------------------------------------------------------------------- */
+
+const Icon = ({ name, size = 16, className = "", style = {} }) => {
+  const s = { width: size, height: size, ...style };
+  const stroke = "currentColor";
+  const sw = 1.6;
+  const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke, strokeWidth: sw, strokeLinecap: "round", strokeLinejoin: "round", className, style };
+  switch (name) {
+    case "search":   return <svg {...common}><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>;
+    case "sparkle":  return <svg {...common}><path d="M12 3v6m0 6v6M3 12h6m6 0h6M5.6 5.6l4.2 4.2m4.4 4.4 4.2 4.2M5.6 18.4l4.2-4.2m4.4-4.4 4.2-4.2"/></svg>;
+    case "star":     return <svg {...common}><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.3 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>;
+    case "star-fill":return <svg {...common} fill={stroke}><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.3 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>;
+    case "arrow":    return <svg {...common}><path d="M5 12h14m-6-6 6 6-6 6"/></svg>;
+    case "back":     return <svg {...common}><path d="M19 12H5m6 6-6-6 6-6"/></svg>;
+    case "download": return <svg {...common}><path d="M12 4v12m-5-5 5 5 5-5M4 20h16"/></svg>;
+    case "chevron":  return <svg {...common}><path d="m6 9 6 6 6-6"/></svg>;
+    case "x":        return <svg {...common}><path d="M6 6l12 12M18 6 6 18"/></svg>;
+    case "info":     return <svg {...common}><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/></svg>;
+    case "warn":     return <svg {...common}><path d="M12 3 2 20h20zM12 10v4m0 3h.01"/></svg>;
+    case "retry":    return <svg {...common}><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>;
+    case "calendar": return <svg {...common}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4m8-4v4"/></svg>;
+    case "pin":      return <svg {...common}><path d="M12 22s7-7.5 7-13a7 7 0 0 0-14 0c0 5.5 7 13 7 13Z"/><circle cx="12" cy="9" r="2.5"/></svg>;
+    case "check":    return <svg {...common}><path d="m5 13 4 4L19 7"/></svg>;
+    case "doc":      return <svg {...common}><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M9 13h6M9 17h4"/></svg>;
+    case "copy":     return <svg {...common}><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>;
+    case "save":     return <svg {...common}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>;
+    case "filter":   return <svg {...common}><path d="M3 5h18l-7 9v6l-4-2v-4z"/></svg>;
+    case "lightning":return <svg {...common}><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>;
+    default: return null;
+  }
+};
+
+const Pill = ({ children, tone = "default", style }) => {
+  const palettes = {
+    default: { bg: "rgba(255,255,255,0.04)", color: "var(--text-2)", border: "1px solid var(--border)" },
+    gold:    { bg: "var(--gold-soft)",       color: "var(--gold-hi)",  border: "1px solid var(--gold-line)" },
+    green:   { bg: "rgba(74,222,128,0.10)",  color: "#9be3b3",         border: "1px solid rgba(74,222,128,0.25)" },
+    state:   { bg: "rgba(255,255,255,0.03)", color: "var(--text)",     border: "1px solid var(--border-hi)" },
+  };
+  const p = palettes[tone] || palettes.default;
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 6,
+      padding: "3px 9px", borderRadius: 999, fontSize: 12, fontWeight: 500,
+      letterSpacing: 0.1,
+      ...p, ...style,
+    }}>{children}</span>
+  );
+};
+
+const Button = ({ variant = "primary", size = "md", icon, iconRight, children, onClick, disabled, style = {}, fullWidth, title }) => {
+  const sizes = {
+    sm: { padding: "6px 12px", fontSize: 12, height: 28, gap: 6, iconSize: 14 },
+    md: { padding: "9px 16px", fontSize: 13, height: 36, gap: 8, iconSize: 16 },
+    lg: { padding: "14px 22px", fontSize: 15, height: 50, gap: 10, iconSize: 18 },
+  };
+  const sz = sizes[size] || sizes.md;
+  const variants = {
+    primary: {
+      background: "var(--gold)", color: "#1c1300", border: "1px solid var(--gold)",
+      fontWeight: 600, boxShadow: "0 1px 0 rgba(255,255,255,0.25) inset, 0 1px 2px rgba(0,0,0,0.3)",
+    },
+    primaryHover: { background: "var(--gold-hi)" },
+    secondary: {
+      background: "rgba(255,255,255,0.02)", color: "var(--text)",
+      border: "1px solid var(--border-hi)", fontWeight: 500,
+    },
+    ghost: { background: "transparent", color: "var(--text-2)", border: "1px solid transparent", fontWeight: 500 },
+    danger: { background: "transparent", color: "var(--red)", border: "1px solid rgba(239,94,94,0.35)", fontWeight: 500 },
+    icon: { background: "transparent", color: "var(--text-2)", border: "1px solid transparent", padding: 6 },
+  };
+  const v = variants[variant] || variants.primary;
+  const [hover, setHover] = React.useState(false);
+  return (
+    <button
+      onClick={onClick} disabled={disabled} title={title}
+      onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center", gap: sz.gap,
+        padding: variant === "icon" ? 6 : sz.padding,
+        height: variant === "icon" ? "auto" : sz.height,
+        fontSize: sz.fontSize, borderRadius: 8,
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+        transition: "background 120ms, border-color 120ms, transform 80ms",
+        width: fullWidth ? "100%" : undefined,
+        ...v,
+        ...(hover && variant === "primary" ? { background: "var(--gold-hi)" } : {}),
+        ...(hover && variant === "secondary" ? { borderColor: "var(--gold-line)" } : {}),
+        ...(hover && variant === "ghost" ? { color: "var(--text)", background: "rgba(255,255,255,0.04)" } : {}),
+        ...style,
+      }}
+    >
+      {icon && <Icon name={icon} size={sz.iconSize} />}
+      {children}
+      {iconRight && <Icon name={iconRight} size={sz.iconSize} />}
+    </button>
+  );
+};
+
+const Field = ({ label, hint, error, children, optional }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+      <label style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }}>
+        {label} {optional && <span style={{ color: "var(--muted)", fontWeight: 400 }}>· optional</span>}
+      </label>
+    </div>
+    {children}
+    {hint && !error && <div style={{ fontSize: 12, color: "var(--muted)" }}>{hint}</div>}
+    {error && <div style={{ fontSize: 12, color: "var(--red)" }}>{error}</div>}
+  </div>
+);
+
+const inputStyle = {
+  width: "100%", background: "var(--bg-2)", border: "1px solid var(--border)",
+  borderRadius: 8, padding: "11px 14px", fontSize: 14, color: "var(--text)",
+  outline: "none", transition: "border-color 120ms, box-shadow 120ms, background 120ms",
+};
+const focusedInputStyle = {
+  borderColor: "var(--gold-line)", boxShadow: "0 0 0 3px rgba(240,200,80,0.08)", background: "var(--bg-2)",
+};
+
+const TextInput = ({ prefix, value, onChange, placeholder, type = "text" }) => {
+  const [focus, setFocus] = React.useState(false);
+  return (
+    <div style={{ display: "flex", alignItems: "center", ...inputStyle, padding: 0, ...(focus ? focusedInputStyle : {}) }}>
+      {prefix && <span style={{ paddingLeft: 14, color: "var(--muted)", fontSize: 14 }}>{prefix}</span>}
+      <input
+        type={type} value={value || ""}
+        onChange={e => onChange?.(e.target.value)}
+        onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
+        placeholder={placeholder}
+        style={{ flex: 1, background: "transparent", border: "none", outline: "none", padding: "11px 14px", paddingLeft: prefix ? 8 : 14, color: "var(--text)", fontSize: 14, fontFamily: "inherit" }}
+      />
+    </div>
+  );
+};
+
+const Textarea = ({ value, onChange, placeholder, rows = 4 }) => {
+  const [focus, setFocus] = React.useState(false);
+  return (
+    <textarea
+      value={value || ""} onChange={e => onChange?.(e.target.value)}
+      onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
+      placeholder={placeholder} rows={rows}
+      style={{ ...inputStyle, resize: "vertical", minHeight: 120, lineHeight: 1.55, ...(focus ? focusedInputStyle : {}) }}
+    />
+  );
+};
+
+const Select = ({ value, onChange, options, placeholder }) => {
+  const [focus, setFocus] = React.useState(false);
+  return (
+    <div style={{ position: "relative" }}>
+      <select
+        value={value || ""} onChange={e => onChange?.(e.target.value)}
+        onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
+        style={{ ...inputStyle, appearance: "none", paddingRight: 38, cursor: "pointer", ...(focus ? focusedInputStyle : {}) }}
+      >
+        <option value="">{placeholder || "Select…"}</option>
+        {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+      </select>
+      <div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--muted)", pointerEvents: "none" }}>
+        <Icon name="chevron" size={16} />
+      </div>
+    </div>
+  );
+};
+
+const MultiStateSelect = ({ value = [], onChange }) => {
+  const [open, setOpen] = React.useState(false);
+  const [q, setQ] = React.useState("");
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+  const filtered = window.STATES.filter(([abbr, name]) => {
+    if (!q) return true;
+    const s = q.toLowerCase();
+    return abbr.toLowerCase().includes(s) || name.toLowerCase().includes(s);
+  });
+  const toggle = (abbr) => {
+    onChange(value.includes(abbr) ? value.filter(s => s !== abbr) : [...value, abbr]);
+  };
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{ ...inputStyle, padding: "8px 10px", minHeight: 44, cursor: "text", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, ...(open ? focusedInputStyle : {}) }}
+      >
+        {value.length === 0 && <span style={{ color: "var(--muted)", padding: "3px 4px" }}>Select states…</span>}
+        {value.map(abbr => (
+          <span key={abbr} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--gold-soft)", color: "var(--gold-hi)", border: "1px solid var(--gold-line)", padding: "3px 4px 3px 9px", borderRadius: 999, fontSize: 12, fontWeight: 600 }}>
+            {abbr}
+            <button onClick={(e) => { e.stopPropagation(); toggle(abbr); }} style={{ background: "transparent", border: "none", padding: 2, color: "inherit", cursor: "pointer", display: "flex" }} aria-label={`Remove ${abbr}`}><Icon name="x" size={12} /></button>
+          </span>
+        ))}
+        <input
+          value={q} onChange={e => setQ(e.target.value)} onFocus={() => setOpen(true)}
+          placeholder={value.length === 0 ? "" : "Add…"}
+          style={{ background: "transparent", border: "none", outline: "none", flex: 1, minWidth: 60, color: "var(--text)", padding: "4px 6px", fontSize: 13 }}
+        />
+      </div>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, background: "var(--panel)", border: "1px solid var(--border-hi)", borderRadius: 8, boxShadow: "0 8px 32px rgba(0,0,0,0.5)", zIndex: 20, maxHeight: 260, overflow: "auto", padding: 6, animation: "fadeIn 120ms ease-out" }}>
+          {filtered.length === 0 && <div style={{ padding: 10, color: "var(--muted)", fontSize: 13 }}>No matches</div>}
+          {filtered.map(([abbr, name]) => {
+            const selected = value.includes(abbr);
+            return (
+              <div
+                key={abbr} onClick={() => toggle(abbr)}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13, background: selected ? "var(--gold-soft)" : "transparent", color: selected ? "var(--gold-hi)" : "var(--text)" }}
+                onMouseEnter={e => { if (!selected) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                onMouseLeave={e => { if (!selected) e.currentTarget.style.background = "transparent"; }}
+              >
+                <span style={{ width: 16, height: 16, borderRadius: 4, border: "1px solid " + (selected ? "var(--gold)" : "var(--border-hi)"), background: selected ? "var(--gold)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", color: "#1c1300" }}>{selected && <Icon name="check" size={12} />}</span>
+                <span className="mono" style={{ width: 26, color: "var(--muted)", fontSize: 11 }}>{abbr}</span>
+                <span>{name}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ScoreBadge = ({ score, breakdown, large = false }) => {
+  const [hover, setHover] = React.useState(false);
+  const tone = score >= 80 ? "green" : score >= 60 ? "amber" : "gray";
+  const colors = {
+    green: { bg: "rgba(74,222,128,0.12)", color: "#9be3b3", ring: "rgba(74,222,128,0.4)" },
+    amber: { bg: "rgba(245,185,66,0.12)", color: "#f0c46d", ring: "rgba(245,185,66,0.4)" },
+    gray:  { bg: "rgba(255,255,255,0.04)", color: "var(--text-2)", ring: "var(--border-hi)" },
+  };
+  const c = colors[tone];
+  return (
+    <div style={{ position: "relative", display: "inline-flex" }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: large ? "8px 12px" : "5px 10px", background: c.bg, color: c.color, border: "1px solid " + c.ring, borderRadius: 8, fontWeight: 700, fontSize: large ? 18 : 14, fontVariantNumeric: "tabular-nums", cursor: "help" }}>
+        <span style={{ width: 6, height: 6, borderRadius: 999, background: c.color, opacity: 0.8 }} />
+        {score}
+        <span style={{ fontSize: large ? 12 : 10, opacity: 0.65, fontWeight: 500, letterSpacing: 0.5 }}>SCORE</span>
+      </div>
+      {hover && breakdown && (
+        <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, minWidth: 260, background: "#0a1e15", border: "1px solid var(--border-hi)", borderRadius: 10, padding: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.6)", zIndex: 30, animation: "fadeIn 120ms ease-out" }}>
+          <div style={{ fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8, fontWeight: 600 }}>Score breakdown</div>
+          {[
+            ["Geo match",         breakdown.geo,      20],
+            ["Org type",          breakdown.org,      25],
+            ["Tech tag overlap",  breakdown.tags,     25],
+            ["Funding alignment", breakdown.funding,  15],
+            ["Deadline urgency",  breakdown.deadline, 10],
+            ["Description match", breakdown.fts,      5 ],
+          ].map(([label, val, max]) => (
+            <div key={label} style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0", fontSize: 12 }}>
+              <div style={{ flex: 1, color: "var(--text-2)" }}>{label}</div>
+              <div style={{ width: 60, height: 4, borderRadius: 999, background: "var(--border)", overflow: "hidden" }}>
+                <div style={{ width: `${(val / max) * 100}%`, height: "100%", background: c.color, opacity: 0.7 }}/>
+              </div>
+              <div className="mono" style={{ width: 42, textAlign: "right", color: "var(--text)", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{val}/{max}</div>
+            </div>
+          ))}
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+            <span style={{ color: "var(--muted)" }}>Deterministic — auditable</span>
+            <span className="mono" style={{ color: c.color, fontWeight: 700 }}>= {score}/100</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const DeadlineChip = ({ deadline, daysLeft }) => {
+  const tone = daysLeft < 30 ? "red" : daysLeft < 90 ? "amber" : "green";
+  const colors = { red: "#ff8585", amber: "#f0c46d", green: "#9be3b3" };
+  const c = colors[tone];
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: c, fontWeight: 500 }}>
+      <span style={{ width: 6, height: 6, borderRadius: 999, background: c, opacity: 0.85 }} />
+      Due {deadline} · {daysLeft}d
+    </span>
+  );
+};
+
+Object.assign(window, { Icon, Pill, Button, Field, TextInput, Textarea, Select, MultiStateSelect, ScoreBadge, DeadlineChip, inputStyle, focusedInputStyle });
+
+/* -------------------------------------------------------------------------- */
+/* CHROME (Top nav + header)                                                  */
+/* -------------------------------------------------------------------------- */
+
+const TopNav = ({ active = "AI Search", onNav }) => {
+  const items = ["Dashboard", "Analytics", "Grants", "AI Search", "Watchlist"];
+  return (
+    <header style={{ position: "sticky", top: 0, zIndex: 50, background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "0 32px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ width: 28, height: 28, borderRadius: 6, background: "var(--gold)", display: "flex", alignItems: "center", justifyContent: "center", color: "#1c1300" }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 12 12 3l9 9-9 9z"/><path d="M9 12h6"/>
+          </svg>
+        </div>
+        <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: -0.2 }}>Grant Leads</div>
+      </div>
+      <nav style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        {items.map(item => {
+          const isActive = item === active;
+          const isAI = item === "AI Search";
+          return (
+            <button key={item} onClick={() => onNav?.(item)} style={{ background: "transparent", border: "none", padding: "8px 14px", fontSize: 14, fontWeight: isActive ? 600 : 500, color: isActive ? "var(--gold)" : "var(--text-2)", borderBottom: isActive ? "2px solid var(--gold)" : "2px solid transparent", marginBottom: -1, height: 64, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
+              {isAI && <Icon name="sparkle" size={13} />}
+              {item}
+            </button>
+          );
+        })}
+        <div style={{ marginLeft: 12, display: "flex", alignItems: "center", gap: 6, color: "var(--text-2)", fontSize: 14, fontWeight: 500, cursor: "pointer" }}>
+          Platform <Icon name="chevron" size={14} />
+        </div>
+      </nav>
+      <div style={{ width: 32, height: 32, borderRadius: 999, background: "var(--gold)", display: "flex", alignItems: "center", justifyContent: "center", color: "#1c1300", fontWeight: 700, fontSize: 12 }}>AG</div>
+    </header>
+  );
+};
+
+const PageHeader = ({ title, subtitle, kicker, actions }) => (
+  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, marginBottom: 28 }}>
+    <div>
+      {kicker && (
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--gold)", fontWeight: 600, marginBottom: 10 }}>
+          <Icon name="sparkle" size={12} /> {kicker}
+        </div>
+      )}
+      <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.15, fontWeight: 700, letterSpacing: -0.5, color: "var(--text)" }}>{title}</h1>
+      {subtitle && <div style={{ marginTop: 8, color: "var(--text-2)", fontSize: 15, maxWidth: 640 }}>{subtitle}</div>}
+    </div>
+    {actions}
+  </div>
+);
+
+Object.assign(window, { TopNav, PageHeader });
+
+/* -------------------------------------------------------------------------- */
+/* SCREEN 1: FORM                                                             */
+/* -------------------------------------------------------------------------- */
+
+const HowItWorks = () => {
+  const [open, setOpen] = React.useState(false);
+  const steps = [
+    { n: "01", t: "Enter prospect details",  d: "Describe the project, org type, coverage states, and rough funding ask." },
+    { n: "02", t: "AI matches grants",       d: "Postgres filters 4,800+ grants. A deterministic scoring engine ranks the top matches with a transparent breakdown." },
+    { n: "03", t: "Get your strategy",       d: "Gemini 2.5 Pro writes a funding stack, per-grant rationale, and a copy-paste outreach snippet." },
+  ];
+  return (
+    <div style={{ marginTop: 24, border: "1px solid var(--border)", borderRadius: 12, background: "var(--bg-2)", overflow: "hidden" }}>
+      <button onClick={() => setOpen(o => !o)} style={{ width: "100%", background: "transparent", border: "none", padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", color: "var(--text)", cursor: "pointer" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 10, fontWeight: 500, fontSize: 14 }}>
+          <Icon name="info" size={14} /> How AI Search works
+        </span>
+        <Icon name="chevron" size={16} style={{ transition: "transform 200ms", transform: open ? "rotate(180deg)" : "none" }} />
+      </button>
+      {open && (
+        <div style={{ padding: "4px 18px 20px", display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 14, animation: "fadeIn 200ms ease-out" }}>
+          {steps.map(s => (
+            <div key={s.n} style={{ padding: 14, background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 8 }}>
+              <div className="mono" style={{ fontSize: 11, color: "var(--gold)", marginBottom: 6, letterSpacing: 1 }}>{s.n}</div>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{s.t}</div>
+              <div style={{ fontSize: 12.5, color: "var(--text-2)", lineHeight: 1.5 }}>{s.d}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SearchForm = ({ initial, onSubmit, onZeroPath }) => {
+  const [project, setProject] = React.useState(initial?.project ?? "");
+  const [orgType, setOrgType] = React.useState(initial?.orgType ?? "");
+  const [states, setStates] = React.useState(initial?.states ?? []);
+  const [funding, setFunding] = React.useState(initial?.funding ?? "");
+
+  const canSubmit = project.trim().length > 10 && orgType && states.length > 0;
+
+  const handleSubmit = (e) => {
+    e?.preventDefault();
+    if (!canSubmit) return;
+    onSubmit({ project, orgType, states, funding });
+  };
+
+  const fillExample = () => {
+    setProject("A school district in Ohio deploying AI-powered surveillance cameras across 12 campuses, with integrated threat detection, access control hardening, and staff training over a 24-month rollout.");
+    setOrgType("School District");
+    setStates(["OH"]);
+    setFunding("2,400,000");
+  };
+
+  return (
+    <div style={{ maxWidth: 820, margin: "0 auto", padding: "40px 32px 80px" }}>
+      <PageHeader kicker="AI Search · Beta" title="Find the right grants for your prospect" subtitle="Describe the deal and we'll run the full pipeline — SQL retrieval, deterministic scoring, and an LLM-written funding strategy you can hand to the rep." actions={
+        <Button variant="ghost" size="sm" icon="lightning" onClick={fillExample}>Try a sample search</Button>
+      }/>
+      <form onSubmit={handleSubmit} style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, padding: 28, display: "flex", flexDirection: "column", gap: 22, boxShadow: "0 1px 0 rgba(255,255,255,0.02) inset" }}>
+        <Field label="Describe your prospect's project" hint="The more specific you are, the better the AI strategy. Include the deployment scope, the technology, and the constraints.">
+          <Textarea value={project} onChange={setProject} placeholder="e.g. A school district in Ohio deploying AI-powered surveillance cameras across 12 campuses..." rows={5} />
+        </Field>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+          <Field label="Prospect organization type">
+            <Select value={orgType} onChange={setOrgType} options={window.ORG_TYPES} placeholder="Select an org type…" />
+          </Field>
+          <Field label="Approximate funding needed" optional hint="Helps the scoring engine grade funding alignment.">
+            <TextInput value={funding} onChange={setFunding} placeholder="500,000" prefix="$" />
+          </Field>
+        </div>
+        <Field label="Coverage states" hint="Tip: National grants are always included. Select up to 50 states.">
+          <MultiStateSelect value={states} onChange={setStates} />
+        </Field>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 4 }}>
+          <Button variant="primary" size="lg" fullWidth icon="search" onClick={handleSubmit} disabled={!canSubmit}>Find Matching Grants</Button>
+        </div>
+        <div style={{ marginTop: -6, display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: "var(--muted)" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <Icon name="info" size={12} />
+            Search runs Gemini 2.5 Pro · ~$0.01 per search · ~1.5–3s
+          </span>
+          <button type="button" onClick={() => onZeroPath?.({ project: "Underwater basket-weaving curriculum for a rural archipelago", orgType: "Other", states: ["HI"], funding: "" })} style={{ background: "transparent", border: "none", color: "var(--muted)", fontSize: 12, cursor: "pointer", textDecoration: "underline", textDecorationStyle: "dotted" }} title="Force a zero-result state for demoing the empty path">Demo: zero-result path</button>
+        </div>
+      </form>
+      <HowItWorks />
+    </div>
+  );
+};
+Object.assign(window, { SearchForm });
+
+/* -------------------------------------------------------------------------- */
+/* SCREEN 2: LOADING                                                          */
+/* -------------------------------------------------------------------------- */
+
+const LoadingScreen = ({ params }) => {
+  const [elapsed, setElapsed] = React.useState(0);
+  React.useEffect(() => {
+    const t0 = Date.now();
+    const id = setInterval(() => setElapsed(Date.now() - t0), 80);
+    return () => clearInterval(id);
+  }, []);
+  const stage = window.PIPELINE_STAGES.find(s => elapsed >= s.t && elapsed < s.t + s.d) || window.PIPELINE_STAGES[window.PIPELINE_STAGES.length - 1];
+  const totalDuration = 2000;
+  const pct = Math.min(100, (elapsed / totalDuration) * 100);
+
+  return (
+    <div style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px" }}>
+      <PageHeader kicker={`AI Search · ${params.orgType} · ${params.states.join(", ")}`} title="Running the pipeline" subtitle="SQL retrieval first, then deterministic scoring, then the LLM strategy layer streams in." />
+      <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, marginBottom: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 999, border: "2px solid var(--gold)", borderTopColor: "transparent", animation: "spin 0.9s linear infinite" }}/>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{stage.label}…</div>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>Stage {window.PIPELINE_STAGES.indexOf(stage) + 1} of {window.PIPELINE_STAGES.length}</div>
+          </div>
+          <div className="mono" style={{ fontSize: 12, color: "var(--muted)", fontVariantNumeric: "tabular-nums" }}>{(elapsed / 1000).toFixed(2)}s</div>
+        </div>
+        <div style={{ height: 4, background: "var(--border)", borderRadius: 999, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg, var(--gold), var(--gold-hi))", transition: "width 120ms linear" }}/>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 380px", gap: 22 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {[0,1,2,3,4].map(i => (
+            <div key={i} style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, padding: 18, display: "flex", flexDirection: "column", gap: 10, opacity: 1 - i * 0.12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                <div className="shimmer" style={{ height: 14, width: "70%", borderRadius: 4, background: "var(--border)" }} />
+                <div className="shimmer" style={{ height: 28, width: 90, borderRadius: 8, background: "var(--border)" }} />
+              </div>
+              <div className="shimmer" style={{ height: 10, width: "40%", borderRadius: 4, background: "var(--border)" }} />
+              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                <div className="shimmer" style={{ height: 20, width: 60, borderRadius: 999, background: "var(--border)" }} />
+                <div className="shimmer" style={{ height: 20, width: 80, borderRadius: 999, background: "var(--border)" }} />
+                <div className="shimmer" style={{ height: 20, width: 70, borderRadius: 999, background: "var(--border)" }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ background: "var(--panel)", border: "1px solid var(--gold-line)", borderRadius: 12, padding: 18, height: "fit-content" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--gold)", marginBottom: 14, fontWeight: 600, fontSize: 13 }}><Icon name="sparkle" size={14} /> AI Funding Strategy</div>
+          {[80,95,70,60].map((w,i) => <div key={i} className="shimmer" style={{ height: 10, width: `${w}%`, borderRadius: 4, background: "var(--border)", marginBottom: 10 }} />)}
+          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 14, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--gold)", animation: "pulseDot 1s ease-in-out infinite" }}/>
+            Waiting on Gemini 2.5 Pro
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+Object.assign(window, { LoadingScreen });
+
+/* -------------------------------------------------------------------------- */
+/* SCREEN 3: RESULTS                                                          */
+/* -------------------------------------------------------------------------- */
+
+const GrantCard = ({ grant, saved, onSave, onView, onJump }) => (
+  <div
+    style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, padding: 18, display: "flex", flexDirection: "column", gap: 12, transition: "border-color 160ms, transform 160ms", animation: "fadeIn 240ms ease-out both" }}
+    onMouseEnter={e => e.currentTarget.style.borderColor = "var(--border-hi)"} onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}
+  >
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start" }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+          <Pill tone="state"><Icon name="pin" size={11} /> {grant.state}</Pill>
+          <DeadlineChip deadline={grant.deadline} daysLeft={grant.daysLeft} />
+        </div>
+        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--text)", lineHeight: 1.3, letterSpacing: -0.1 }}>{grant.title}</h3>
+        <div style={{ marginTop: 4, color: "var(--muted)", fontSize: 13 }}>{grant.agency}</div>
+      </div>
+      <ScoreBadge score={grant.score} breakdown={grant.breakdown} />
+    </div>
+    <div style={{ display: "flex", alignItems: "center", gap: 18, fontSize: 13, flexWrap: "wrap" }}>
+      <div><span style={{ color: "var(--muted)" }}>Funding: </span><span style={{ fontWeight: 600, color: "var(--gold)" }}>{grant.funding}</span></div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{grant.tags.map(t => <Pill key={t} tone="default">{t}</Pill>)}</div>
+    </div>
+    <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+      <Button variant="secondary" size="sm" icon={saved ? "star-fill" : "star"} onClick={() => onSave?.(grant.id)} style={saved ? { color: "var(--gold)", borderColor: "var(--gold-line)" } : {}}>{saved ? "Saved" : "Save to Watchlist"}</Button>
+      <Button variant="ghost" size="sm" iconRight="arrow" onClick={() => onView?.(grant)}>View Details</Button>
+      <div style={{ flex: 1 }} />
+      {onJump && (
+        <button onClick={() => onJump(grant.id)} style={{ background: "transparent", border: "1px dashed var(--border-hi)", borderRadius: 6, padding: "0 10px", height: 28, fontSize: 11, color: "var(--gold)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="sparkle" size={11} /> AI note</button>
+      )}
+    </div>
+  </div>
+);
+
+const StrategyPanel = ({ strategy, llmError, onRetry, streaming, onExport, onSaveSearch, onCopy, copied }) => {
+  const isError = !!llmError;
+  return (
+    <aside style={{ position: "sticky", top: 88, background: "var(--panel)", border: "1px solid " + (isError ? "rgba(239,94,94,0.35)" : "var(--gold-line)"), borderRadius: 12, overflow: "hidden", maxHeight: "calc(100vh - 110px)", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", background: isError ? "rgba(239,94,94,0.04)" : "rgba(240,200,80,0.04)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, color: isError ? "var(--red)" : "var(--gold)", fontWeight: 600, fontSize: 13 }}><Icon name={isError ? "warn" : "sparkle"} size={14} /> AI Funding Strategy</div>
+        <div style={{ fontSize: 11, color: "var(--muted)" }} className="mono">{isError ? "ERROR" : streaming ? "STREAMING" : "READY"}</div>
+      </div>
+      <div style={{ padding: 18, overflowY: "auto", flex: 1 }}>
+        {isError ? <ErrorBlock onRetry={onRetry} /> : <StrategyBody strategy={strategy} streaming={streaming} onCopy={onCopy} copied={copied} />}
+      </div>
+      <div style={{ padding: 14, borderTop: "1px solid var(--border)", background: "var(--bg-2)", display: "flex", flexDirection: "column", gap: 8 }}>
+        <Button variant="primary" size="md" icon="download" fullWidth onClick={onExport}>Download PDF Report</Button>
+        <Button variant="ghost" size="sm" icon="save" fullWidth onClick={onSaveSearch}>Save this search</Button>
+      </div>
+    </aside>
+  );
+};
+
+const ErrorBlock = ({ onRetry }) => (
+  <div style={{ textAlign: "center", padding: "8px 4px" }}>
+    <div style={{ width: 44, height: 44, borderRadius: 999, margin: "0 auto 12px", background: "rgba(239,94,94,0.12)", color: "var(--red)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="warn" size={20} /></div>
+    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>AI strategy temporarily unavailable</div>
+    <div style={{ fontSize: 12.5, color: "var(--text-2)", lineHeight: 1.5, marginBottom: 14 }}>Gemini 2.5 Pro returned a 5xx. The ranked grants below are deterministic — they don't depend on the LLM.</div>
+    <Button variant="secondary" size="sm" icon="retry" onClick={onRetry}>Retry strategy</Button>
+    <div className="mono" style={{ fontSize: 10, color: "var(--muted)", marginTop: 16 }}>auto-failover to Claude Sonnet 4.6 in 4s</div>
+  </div>
+);
+
+const StrategyBody = ({ strategy, streaming, onCopy, copied }) => {
+  const [phase, setPhase] = React.useState(streaming ? 0 : 3);
+  React.useEffect(() => {
+    if (!streaming) { setPhase(3); return; }
+    const t1 = setTimeout(() => setPhase(1), 700);
+    const t2 = setTimeout(() => setPhase(2), 1500);
+    const t3 = setTimeout(() => setPhase(3), 2500);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [streaming]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <section style={{ animation: "streamIn 300ms both" }}>
+        <SectionTitle>Funding overview</SectionTitle>
+        <p style={{ fontSize: 13, lineHeight: 1.65, color: "var(--text-2)", margin: 0 }}>{strategy.overview}</p>
+      </section>
+      {phase >= 1 && (
+        <section style={{ animation: "streamIn 300ms both" }}>
+          <SectionTitle>Per-grant strategy</SectionTitle>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {strategy.perGrant.slice(0, phase >= 2 ? strategy.perGrant.length : 2).map((g, i) => {
+              const grant = window.SAMPLE_GRANTS.find(x => x.id === g.id);
+              return (
+                <div key={g.id} style={{ borderLeft: "2px solid var(--gold-line)", paddingLeft: 12, animation: "streamIn 300ms both", animationDelay: `${i * 80}ms` }}>
+                  <div style={{ fontWeight: 600, fontSize: 12, color: "var(--gold)", marginBottom: 4 }}>→ {grant?.title?.split(" — ")[0] || g.id}</div>
+                  <div style={{ fontSize: 12.5, color: "var(--text-2)", lineHeight: 1.55, marginBottom: 4 }}>{g.note}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", fontStyle: "italic" }}>Action: {g.action}</div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+      {phase >= 3 ? (
+        <section style={{ animation: "streamIn 300ms both" }}>
+          <SectionTitle>
+            <span>Prospect message starter</span>
+            <button onClick={onCopy} style={{ background: "transparent", border: "1px solid var(--border-hi)", borderRadius: 6, padding: "2px 8px", height: 22, fontSize: 11, color: copied ? "var(--green)" : "var(--text-2)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name={copied ? "check" : "copy"} size={11} /> {copied ? "Copied" : "Copy"}</button>
+          </SectionTitle>
+          <div style={{ padding: 12, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12.5, lineHeight: 1.6, color: "var(--text)", fontStyle: "italic" }}>“{strategy.outreach}”</div>
+        </section>
+      ) : (
+        <section>
+          <SectionTitle>Prospect message starter</SectionTitle>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div className="shimmer" style={{ height: 10, width: "92%", borderRadius: 4, background: "var(--border)" }} />
+            <div className="shimmer" style={{ height: 10, width: "85%", borderRadius: 4, background: "var(--border)" }} />
+            <div className="shimmer" style={{ height: 10, width: "70%", borderRadius: 4, background: "var(--border)" }} />
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10, display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--gold)", animation: "pulseDot 1s ease-in-out infinite" }}/> Generating outreach…</div>
+        </section>
+      )}
+    </div>
+  );
+};
+
+const SectionTitle = ({ children }) => (
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 10, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--muted)", fontWeight: 600, marginBottom: 8 }}>{children}</div>
+);
+
+const ResultsScreen = ({ params, grants, scenario, onEdit, onExport, onLLMRetry, llmError }) => {
+  const [saved, setSaved] = React.useState(new Set());
+  const [streaming, setStreaming] = React.useState(!llmError);
+  const [copied, setCopied] = React.useState(false);
+  const cardRefs = React.useRef({});
+
+  React.useEffect(() => {
+    if (llmError) { setStreaming(false); return; }
+    setStreaming(true);
+    const t = setTimeout(() => setStreaming(false), 2700);
+    return () => clearTimeout(t);
+  }, [llmError, scenario]);
+
+  const toggleSave = (id) => {
+    setSaved(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const copyOutreach = () => {
+    navigator.clipboard?.writeText(window.TOP_STRATEGY.outreach).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const jumpToCard = (id) => {
+    const el = cardRefs.current[id];
+    if (el) {
+      const top = el.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top, behavior: "smooth" });
+      el.style.boxShadow = "0 0 0 2px var(--gold-line)";
+      setTimeout(() => { el.style.boxShadow = ""; }, 1200);
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 32px 80px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18, gap: 16 }}>
+        <div>
+          <button onClick={onEdit} style={{ background: "transparent", border: "none", padding: 0, color: "var(--muted)", fontSize: 12.5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 6 }}><Icon name="back" size={12} /> Back to search</button>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: -0.3 }}>{grants.length} matches for {params.orgType.toLowerCase()} in {params.states.join(", ")}</h1>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>Ranked by relevance · {grants.length} matches found · 3 filtered as ineligible</div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button variant="secondary" size="sm" icon="filter">Refine</Button>
+          <Button variant="ghost" size="sm" icon="retry" onClick={onLLMRetry} title="Simulate LLM error retry">Re-run AI</Button>
+        </div>
+      </div>
+      {llmError && (
+        <div style={{ padding: "10px 14px", borderRadius: 8, marginBottom: 18, background: "rgba(239,94,94,0.06)", border: "1px solid rgba(239,94,94,0.2)", color: "#ffb3b3", fontSize: 12.5, display: "flex", alignItems: "center", gap: 10 }}><Icon name="warn" size={14} /> <span>Showing ranked grant matches. AI analysis will be available shortly.</span></div>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 380px", gap: 22, alignItems: "flex-start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {grants.map((g, i) => {
+            const hasNote = window.TOP_STRATEGY.perGrant.find(p => p.id === g.id);
+            return (
+              <div key={g.id} ref={el => cardRefs.current[g.id] = el} style={{ transition: "box-shadow 200ms", borderRadius: 12 }}>
+                <GrantCard grant={g} saved={saved.has(g.id)} onSave={toggleSave} onJump={hasNote ? jumpToCard : null} />
+              </div>
+            );
+          })}
+        </div>
+        <StrategyPanel strategy={window.TOP_STRATEGY} streaming={streaming} llmError={llmError} onRetry={onLLMRetry} onExport={onExport} onSaveSearch={() => {}} onCopy={copyOutreach} copied={copied} />
+      </div>
+    </div>
+  );
+};
+Object.assign(window, { ResultsScreen });
+
+/* -------------------------------------------------------------------------- */
+/* SCREEN 4: PDF PREVIEW                                                      */
+/* -------------------------------------------------------------------------- */
+
+const PDFPreview = ({ params, grants, strategy, onClose }) => {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(5,15,10,0.7)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 32px", animation: "fadeIn 200ms ease-out", overflow: "auto" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "transparent", maxWidth: 880, width: "100%", display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "var(--text)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Icon name="doc" size={18} style={{ color: "var(--gold)" }} />
+            <div>
+              <div style={{ fontWeight: 600 }}>PDF Report Preview</div>
+              <div style={{ fontSize: 12, color: "var(--muted)" }}>Grant Leads · branded export · 2 pages</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button variant="primary" size="sm" icon="download">Download PDF</Button>
+            <Button variant="ghost" size="sm" icon="x" onClick={onClose}>Close</Button>
+          </div>
+        </div>
+        <div style={{ background: "#f7f4ec", color: "#1c1c1c", borderRadius: 4, boxShadow: "0 24px 80px rgba(0,0,0,0.5)", fontFamily: "'Inter', sans-serif", padding: "44px 56px 56px", lineHeight: 1.55, fontSize: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 18, borderBottom: "3px solid #0d2218", marginBottom: 22 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 5, background: "#0d2218", color: "#f0c850", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12 12 3l9 9-9 9z"/><path d="M9 12h6"/></svg>
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, color: "#0d2218", fontSize: 16, letterSpacing: -0.3 }}>Grant Leads</div>
+                <div style={{ fontSize: 10, color: "#5b6a60", textTransform: "uppercase", letterSpacing: 1.5 }}>Grant Match Report</div>
+              </div>
+            </div>
+            <div style={{ textAlign: "right", fontSize: 10, color: "#5b6a60" }}>
+              <div className="mono">May 12, 2026</div><div className="mono">Ref · GLA-024871</div>
+            </div>
+          </div>
+          <PDFSection num="01" title="Search Parameters">
+            <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", rowGap: 6, columnGap: 16, fontSize: 12 }}>
+              <div style={{ color: "#5b6a60" }}>Organization</div><div style={{ fontWeight: 500 }}>{params.orgType}</div>
+              <div style={{ color: "#5b6a60" }}>Coverage</div><div style={{ fontWeight: 500 }}>{params.states.join(", ")} + national</div>
+              <div style={{ color: "#5b6a60" }}>Funding need</div><div style={{ fontWeight: 500 }}>${params.funding || "—"}</div>
+              <div style={{ color: "#5b6a60" }}>Project</div><div style={{ fontWeight: 500, color: "#1c1c1c" }}>{params.project}</div>
+            </div>
+          </PDFSection>
+          <PDFSection num="02" title="Top Matched Grants">
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
+              <thead>
+                <tr style={{ borderBottom: "1.5px solid #0d2218", color: "#5b6a60", textTransform: "uppercase", letterSpacing: 1 }}>
+                  <th style={{ ...thStyle, width: 44 }}>Score</th><th style={thStyle}>Grant</th><th style={{ ...thStyle, width: 64 }}>State</th><th style={{ ...thStyle, width: 100 }}>Funding</th><th style={{ ...thStyle, width: 90 }}>Deadline</th>
+                </tr>
+              </thead>
+              <tbody>
+                {grants.slice(0, 6).map(g => (
+                  <tr key={g.id} style={{ borderBottom: "1px solid #d8d0bd" }}>
+                    <td style={tdStyle}><span style={{ display: "inline-block", padding: "2px 6px", borderRadius: 3, background: g.score >= 80 ? "#dbf2e2" : g.score >= 60 ? "#fbeacb" : "#e6e3d8", color: g.score >= 80 ? "#1c5a35" : g.score >= 60 ? "#7a4a05" : "#3b3b3b", fontWeight: 700, fontSize: 11 }}>{g.score}</span></td>
+                    <td style={tdStyle}><div style={{ fontWeight: 600, color: "#1c1c1c" }}>{g.title}</div><div style={{ color: "#5b6a60", fontSize: 10.5, marginTop: 2 }}>{g.agency}</div></td>
+                    <td style={tdStyle}>{g.state}</td><td style={tdStyle}>{g.funding}</td><td style={tdStyle}>{g.deadline}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </PDFSection>
+          <PDFSection num="03" title="AI Funding Strategy">
+            <p style={{ margin: "0 0 12px", fontSize: 12, lineHeight: 1.65 }}>{strategy.overview}</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+              {strategy.perGrant.slice(0, 3).map(g => {
+                const grant = window.SAMPLE_GRANTS.find(x => x.id === g.id);
+                return (
+                  <div key={g.id} style={{ padding: "8px 12px", background: "#ece6d4", borderRadius: 3, borderLeft: "3px solid #0d2218" }}>
+                    <div style={{ fontWeight: 700, fontSize: 11, color: "#0d2218" }}>{grant?.title}</div><div style={{ fontSize: 11.5, marginTop: 3 }}>{g.note}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </PDFSection>
+          <PDFSection num="04" title="Outreach Snippet">
+            <div style={{ padding: 14, background: "#0d2218", color: "#f7f4ec", borderRadius: 4, fontSize: 12, lineHeight: 1.7, fontStyle: "italic" }}>“{strategy.outreach}”</div>
+          </PDFSection>
+          <div style={{ marginTop: 28, paddingTop: 14, borderTop: "1px solid #d8d0bd", display: "flex", justifyContent: "space-between", fontSize: 10, color: "#5b6a60" }}>
+            <span>Generated by Grant Leads AI Search · grantleads.example</span><span className="mono">Page 1 of 2</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+const thStyle = { textAlign: "left", padding: "10px 6px", fontWeight: 600, fontSize: 9.5 };
+const tdStyle = { padding: "9px 6px", verticalAlign: "top" };
+const PDFSection = ({ num, title, children }) => (
+  <section style={{ marginBottom: 22 }}>
+    <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 10 }}>
+      <span className="mono" style={{ fontSize: 10, color: "#0d2218", fontWeight: 700, letterSpacing: 1 }}>{num}</span>
+      <h2 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#0d2218", letterSpacing: 0.4, textTransform: "uppercase" }}>{title}</h2>
+    </div>
+    {children}
+  </section>
+);
+Object.assign(window, { PDFPreview });
+
+/* -------------------------------------------------------------------------- */
+/* SCREEN 5: EMPTY STATE                                                      */
+/* -------------------------------------------------------------------------- */
+
+const EmptyState = ({ params, onBroaden, onEdit }) => {
+  const filters = [
+    { label: params.orgType, kind: "orgType" },
+    ...params.states.map(s => ({ label: s, kind: "state" })),
+    { label: "Cybersecurity", kind: "tag" },
+  ];
+  return (
+    <div style={{ maxWidth: 720, margin: "0 auto", padding: "60px 32px" }}>
+      <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, padding: 36, textAlign: "center", animation: "fadeIn 240ms ease-out" }}>
+        <div style={{ position: "relative", height: 140, marginBottom: 24 }}>
+          <svg viewBox="0 0 220 140" width="220" height="140" style={{ display: "block", margin: "0 auto" }}>
+            <defs><linearGradient id="empGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#f0c850" stopOpacity="0.6"/><stop offset="1" stopColor="#f0c850" stopOpacity="0.05"/></linearGradient></defs>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <rect key={i} x={20 + (i % 3) * 64} y={20 + Math.floor(i / 3) * 50} width="48" height="34" rx="4" fill="none" stroke="#1f4d36" strokeDasharray="2 3" />
+            ))}
+            <circle cx="148" cy="78" r="34" fill="none" stroke="url(#empGold)" strokeWidth="2"/>
+            <circle cx="148" cy="78" r="34" fill="rgba(240,200,80,0.04)"/>
+            <line x1="174" y1="104" x2="196" y2="126" stroke="#f0c850" strokeWidth="3" strokeLinecap="round"/>
+            <path d="M136 66l24 24M160 66l-24 24" stroke="#f0c850" strokeWidth="2" strokeLinecap="round" opacity="0.7"/>
+          </svg>
+        </div>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: -0.3 }}>No exact matches found for your criteria</h2>
+        <p style={{ margin: "10px auto 0", color: "var(--text-2)", fontSize: 14, maxWidth: 460, lineHeight: 1.55 }}>The retrieval stage came back with 0 candidates after hard filters. The pipeline tried two automatic relaxations before stopping.</p>
+        <div style={{ marginTop: 24, padding: "14px 16px", background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10, textAlign: "left", display: "inline-block", maxWidth: "100%" }}>
+          <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8, fontWeight: 600 }}>Searched</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{filters.map((f, i) => <Pill key={i} tone="state">{f.label}</Pill>)}</div>
+        </div>
+        <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 8, alignItems: "stretch", maxWidth: 360, marginLeft: "auto", marginRight: "auto" }}>
+          <SuggestionRow text="Try broadening to national grants only" hint="Removes the state filter; surface federal opportunities." />
+          <SuggestionRow text="Remove the 'Cybersecurity' tech tag" hint="Tag overlap is permissive; removing it widens candidates by ~40%." />
+        </div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 28 }}>
+          <Button variant="primary" size="md" icon="search" onClick={onBroaden}>Broaden search</Button>
+          <Button variant="secondary" size="md" icon="back" onClick={onEdit}>Edit search</Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+const SuggestionRow = ({ text, hint }) => (
+  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 8, textAlign: "left" }}>
+    <div style={{ color: "var(--gold)", marginTop: 1 }}><Icon name="lightning" size={14} /></div>
+    <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 500 }}>{text}</div><div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2 }}>{hint}</div></div>
+  </div>
+);
+Object.assign(window, { EmptyState });
+
+/* -------------------------------------------------------------------------- */
+/* APP (Main state machine & Tweak panel)                                     */
+/* -------------------------------------------------------------------------- */
+
+const DEFAULT_PARAMS = {
+  project: "A school district in Ohio deploying AI-powered surveillance cameras across 12 campuses, with integrated threat detection, access control hardening, and staff training over a 24-month rollout.",
+  orgType: "School District",
+  states: ["OH"],
+  funding: "2,400,000",
+};
+
+const DEFAULTS = {
+  "scenario": "happy",
+  "accent": "#f0c850",
+  "panelDensity": "comfortable",
+  "showAINotes": true,
+  "scoreStyle": "badge",
+  "strategyPosition": "right"
+};
+
+function App() {
+  const [screen, setScreen] = React.useState("form"); // form | loading | results | empty
+  const [params, setParams] = React.useState(DEFAULT_PARAMS);
+  const [pdfOpen, setPdfOpen] = React.useState(false);
+  const [llmError, setLlmError] = React.useState(false);
+
+  const [tweaks, setTweak] = window.useTweaks(DEFAULTS);
+
+  React.useEffect(() => {
+    document.documentElement.style.setProperty("--gold", tweaks.accent);
+  }, [tweaks.accent]);
+
+  React.useEffect(() => {
+    if (tweaks.scenario === "llm-error") setLlmError(true);
+    else setLlmError(false);
+  }, [tweaks.scenario]);
+
+  const runSearch = (next) => {
+    setParams(next);
+    setScreen("loading");
+    setTimeout(() => setScreen("results"), 2000);
+  };
+
+  const runZeroPath = (next) => {
+    setParams(next);
+    setScreen("loading");
+    setTimeout(() => setScreen("empty"), 1700);
+  };
+
+  const retryLLM = () => {
+    setLlmError(false);
+    setScreen("loading");
+    setTimeout(() => setScreen("results"), 1400);
+  };
+
+  const grants = React.useMemo(() => [...window.SAMPLE_GRANTS].sort((a, b) => b.score - a.score), []);
+
+  return (
+    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+      <window.TopNav active="AI Search" onNav={(n) => { if (n !== "AI Search") return; setScreen("form"); }} />
+
+      {screen === "form" && <window.SearchForm initial={params} onSubmit={runSearch} onZeroPath={runZeroPath} />}
+      {screen === "loading" && <window.LoadingScreen params={params} />}
+      {screen === "results" && <window.ResultsScreen params={params} grants={grants} scenario={tweaks.scenario} llmError={llmError} onEdit={() => setScreen("form")} onExport={() => setPdfOpen(true)} onLLMRetry={retryLLM} />}
+      {screen === "empty" && <window.EmptyState params={params} onBroaden={() => runSearch({ ...params, states: [] })} onEdit={() => setScreen("form")} />}
+      {pdfOpen && <window.PDFPreview params={params} grants={grants} strategy={window.TOP_STRATEGY} onClose={() => setPdfOpen(false)} />}
+
+      <TweaksUI
+        tweaks={tweaks}
+        setTweak={setTweak}
+        onJump={(s) => {
+          if (s === "form") setScreen("form");
+          if (s === "loading") setScreen("loading");
+          if (s === "results") { setLlmError(false); setScreen("results"); }
+          if (s === "empty") { setParams({ ...params }); setScreen("empty"); }
+          if (s === "pdf")   { setScreen("results"); setPdfOpen(true); }
+          if (s === "llm-error") { setLlmError(true); setScreen("results"); }
+        }}
+      />
+    </div>
+  );
+}
+
+const TweaksUI = ({ tweaks, setTweak, onJump }) => {
+  const { TweaksPanel, TweakSection, TweakColor, TweakButton } = window;
+  return (
+    <TweaksPanel title="Tweaks · AI Search">
+      <TweakSection label="Jump to screen">
+        <TweakButton label="1 · Form" onClick={() => onJump("form")} />
+        <TweakButton label="2 · Loading" onClick={() => onJump("loading")} />
+        <TweakButton label="3 · Results" onClick={() => onJump("results")} />
+        <TweakButton label="4 · PDF Preview" onClick={() => onJump("pdf")} />
+        <TweakButton label="5 · Empty State" onClick={() => onJump("empty")} />
+        <TweakButton label="6 · LLM Error" onClick={() => onJump("llm-error")} />
+      </TweakSection>
+
+      <TweakSection label="Theme">
+        <TweakColor
+          label="Accent"
+          value={tweaks.accent}
+          onChange={(v) => setTweak("accent", v)}
+          options={["#f0c850", "#a3e635", "#7fb4e0", "#e08a5b", "#c08af0"]}
+        />
+      </TweakSection>
+    </TweaksPanel>
+  );
+};
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+
+</script>
+</body>
+</html>
